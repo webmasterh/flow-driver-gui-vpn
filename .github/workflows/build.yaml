@@ -35,6 +35,10 @@ jobs:
         go mod tidy
         go mod download
 
+    - name: Install MinGW for Windows cross-compilation
+      run: |
+        sudo apt-get install -y gcc-mingw-w64-x86-64
+
     - name: Build Windows
       run: |
         VERSION="${{ github.ref_name }}"
@@ -43,10 +47,6 @@ jobs:
         GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc go build -ldflags="-H windowsgui -s -w" -o $FOLDER_NAME/flow-driver-gui.exe
         cp -r ./dist/client $FOLDER_NAME/
         zip -r ${FOLDER_NAME}.zip $FOLDER_NAME
-
-    - name: Install MinGW for Windows cross-compilation
-      run: |
-        sudo apt-get install -y gcc-mingw-w64-x86-64
 
     - name: Build macOS
       run: |
