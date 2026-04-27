@@ -36,38 +36,38 @@ jobs:
           name: windows-build
           path: flow-driver-*.zip
 
-  build-macos:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
+  # build-macos:
+  #   runs-on: macos-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
       
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.23'
+  #     - name: Setup Go
+  #       uses: actions/setup-go@v5
+  #       with:
+  #         go-version: '1.23'
       
-      - name: Install dependencies
-        run: |
-          go mod tidy
-          go mod download
+  #     - name: Install dependencies
+  #       run: |
+  #         go mod tidy
+  #         go mod download
       
-      - name: Build macOS
-        run: |
-          VERSION="${{ github.ref_name }}"
-          FOLDER_NAME="flow-driver-${VERSION}-macos"
-          mkdir -p $FOLDER_NAME
-          go build -o $FOLDER_NAME/flow-driver-gui
-          cp -r ./dist/client $FOLDER_NAME/
-          zip -r ${FOLDER_NAME}.zip $FOLDER_NAME
+  #     - name: Build macOS
+  #       run: |
+  #         VERSION="${{ github.ref_name }}"
+  #         FOLDER_NAME="flow-driver-${VERSION}-macos"
+  #         mkdir -p $FOLDER_NAME
+  #         go build -o $FOLDER_NAME/flow-driver-gui
+  #         cp -r ./dist/client $FOLDER_NAME/
+  #         zip -r ${FOLDER_NAME}.zip $FOLDER_NAME
       
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos-build
-          path: flow-driver-*.zip
+  #     - name: Upload artifact
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: macos-build
+  #         path: flow-driver-*.zip
 
   release:
-    needs: [build-windows, build-macos]
+    needs: [build-windows]
     runs-on: ubuntu-latest
     steps:
       - name: Download all artifacts
