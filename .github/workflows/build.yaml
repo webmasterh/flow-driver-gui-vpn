@@ -47,8 +47,4 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Verify build
-      if: startsWith(github.ref, 'refs/tags/')
-      run: |
-        # Show file information to verify successful build
-        Get-ChildItem -Path .\flow-driver-*.exe -Force
+
