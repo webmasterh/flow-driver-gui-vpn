@@ -301,7 +301,7 @@ func main() {
 	// Config display
 	configText := widget.NewMultiLineEntry()
 	configText.Wrapping = fyne.TextWrapWord
-	
+
 	refreshConfig := func() {
 		configContent, err := vm.loadConfig()
 		if err != nil {
@@ -366,10 +366,13 @@ func main() {
 		widget.NewLabel("• credentials.json"),
 	)
 
+	cfgScroll := container.NewScroll(configText)
+	cfgScroll.SetMinSize(fyne.NewSize(550, 250))
+
 	// Configuration tab with editor
 	configContainer := container.NewVBox(
 		widget.NewLabel("Configuration Editor (JSON format):"),
-		container.NewScroll(configText),
+		cfgScroll,
 		vm.saveConfigBtn,
 	)
 	
