@@ -33,6 +33,8 @@ type VPNManager struct {
 	clientDir     string
 	dirEntry      *widget.Entry
 	window        fyne.Window
+	configEditor  *widget.RichText
+	saveConfigBtn *widget.Button
 }
 
 func NewVPNManager(window fyne.Window) *VPNManager {
@@ -218,6 +220,30 @@ func (vm *VPNManager) loadConfig() (string, error) {
 	return string(prettyJSON), nil
 }
 
+func (vm *VPNManager) saveConfig(content string) error {
+	configPath := filepath.Join(vm.clientDir, "client_config.json")
+	
+	// Validate JSON format before saving
+	var jsonData interface{}
+	if err := json.Unmarshal([]byte(content), &jsonData); err != nil {
+		return fmt.Errorf("invalid JSON: %v", err)
+	}
+	
+	// Format with proper indentation for saving
+	formattedContent, err := json.MarshalIndent(jsonData, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to format JSON: %v", err)
+	}
+	
+	err = os.WriteFile(configPath, formattedContent, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to save config file: %v", err)
+	}
+	
+	vm.appendLog("Configuration saved successfully")
+	return nil
+}
+
 func main() {
 	myApp := app.New()
 	myWindow := myApp.NewWindow("Flow Driver GUI")
@@ -286,6 +312,21 @@ func main() {
 	}
 	refreshConfig()
 
+	// Config editor (read-only by default, but can be made editable)
+	vm.configEditor = widget.NewRichTextFromMarkdown("")
+	vm.configEditor.Wrapping = fyne.TextWrapWord
+	
+	// Save config button
+	vm.saveConfigBtn = widget.NewButton("Save Configuration", func() {
+		content := configText.Text
+		if err := vm.saveConfig(content); err != nil {
+			vm.appendLog(fmt.Sprintf("Error saving config: %v", err))
+			dialog.ShowError(err, myWindow)
+		} else {
+			vm.appendLog("Configuration saved successfully")
+		}
+	})
+
 	// Settings tab
 	vm.dirEntry = widget.NewEntry()
 	vm.dirEntry.SetText(vm.clientDir)
@@ -309,7 +350,7 @@ func main() {
 		}
 	})
 
-	saveBtn := widget.NewButton("Save Directory", func() {
+	saveDirBtn := widget.NewButton("Save Directory", func() {
 		vm.clientDir = vm.dirEntry.Text
 		refreshConfig()
 		dialog.ShowInformation("Saved", "Client directory updated", myWindow)
@@ -318,13 +359,20 @@ func main() {
 	settingsContent := container.NewVBox(
 		widget.NewLabel("VPN Client Directory:"),
 		vm.dirEntry,
-		container.NewHBox(browseBtn, validateBtn, saveBtn),
+		container.NewHBox(browseBtn, validateBtn, saveDirBtn),
 		widget.NewLabel("\nRequired files:"),
 		widget.NewLabel("• client.exe"),
 		widget.NewLabel("• client_config.json"),
 		widget.NewLabel("• credentials.json"),
 	)
 
+	// Configuration tab with editor
+	configContainer := container.NewVBox(
+		widget.NewLabel("Configuration Editor (JSON format):"),
+		container.NewScroll(configText),
+		vm.saveConfigBtn,
+	)
+	
 	// Tabs
 	tabs := container.NewAppTabs(
 		container.NewTabItem("Control", container.NewVBox(
@@ -334,7 +382,7 @@ func main() {
 			widget.NewLabel("Logs:"),
 			logScroll,
 		)),
-		container.NewTabItem("Configuration", container.NewScroll(configText)),
+		container.NewTabItem("Configuration", configContainer),
 		container.NewTabItem("Settings", settingsContent),
 	)
 
