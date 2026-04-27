@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
@@ -30,7 +33,7 @@ jobs:
 
     - name: Build Windows GUI executable
       run: |
-        VERSION=${github.ref_name}
+        VERSION= ${{ github.ref_name }}
         FILE_NAME="flow-driver-${VERSION}-windows.exe"
         go build -ldflags="-H windowsgui -s -w" -o $FILE_NAME
 
