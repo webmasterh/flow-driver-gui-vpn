@@ -1,5 +1,4 @@
 # Go generated files
-*.exe
 *.dll
 *.so
 *.dylib
@@ -8,7 +7,6 @@
 
 # Build artifacts
 bin/
-!dist/client/
 release/
 
 # IDE specific files
