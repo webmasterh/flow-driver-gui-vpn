@@ -34,7 +34,7 @@ jobs:
     - name: Build Windows GUI executable
       run: |
         $VERSION = "${{ github.ref_name }}"
-        $FILE_NAME = "flow-driver-${VERSION}-windows.exe"
+        $FILE_NAME = "flow-driver-gui-${VERSION}-windows.exe"
         go build -ldflags="-H windowsgui -s -w" -o $FILE_NAME
 
     - name: Release
@@ -43,9 +43,3 @@ jobs:
         files: flow-driver-*
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Verify build
-      if: startsWith(github.ref, 'refs/tags/')
-      run: |
-        # Show file information to verify successful build
-        Get-ChildItem -Path .\flow-driver-gui.exe -Force
