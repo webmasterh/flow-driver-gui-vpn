@@ -5,62 +5,77 @@ on:
     tags:
       - 'v*'
 
-permissions:
-  contents: write
-
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    
+  build-windows:
+    runs-on: windows-latest
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+      
+      - name: Install dependencies
+        run: |
+          go mod tidy
+          go mod download
+      
+      - name: Build Windows
+        run: |
+          $VERSION = "${{ github.ref_name }}"
+          $FOLDER_NAME = "flow-driver-$VERSION-windows"
+          New-Item -ItemType Directory -Path $FOLDER_NAME
+          go build -ldflags="-H windowsgui -s -w" -o $FOLDER_NAME/flow-driver-gui.exe
+          Copy-Item -Recurse ./dist/client $FOLDER_NAME/
+          Compress-Archive -Path $FOLDER_NAME/* -DestinationPath "$FOLDER_NAME.zip"
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build
+          path: flow-driver-*.zip
 
-    - name: Setup Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.23'
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+      
+      - name: Install dependencies
+        run: |
+          go mod tidy
+          go mod download
+      
+      - name: Build macOS
+        run: |
+          VERSION="${{ github.ref_name }}"
+          FOLDER_NAME="flow-driver-${VERSION}-macos"
+          mkdir -p $FOLDER_NAME
+          go build -o $FOLDER_NAME/flow-driver-gui
+          cp -r ./dist/client $FOLDER_NAME/
+          zip -r ${FOLDER_NAME}.zip $FOLDER_NAME
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-build
+          path: flow-driver-*.zip
 
-    - name: Install Fyne dependencies for Ubuntu
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y gcc libgl1-mesa-dev xorg-dev
-
-    - name: Install Fyne cross-compilation tool
-      run: |
-        go install fyne.io/fyne/v2/cmd/fyne@latest
-
-    - name: Install dependencies
-      run: |
-        go mod tidy
-        go mod download
-
-    - name: Install MinGW for Windows cross-compilation
-      run: |
-        sudo apt-get install -y gcc-mingw-w64-x86-64
-
-    - name: Build Windows
-      run: |
-        VERSION="${{ github.ref_name }}"
-        FOLDER_NAME="flow-driver-${VERSION}-windows"
-        mkdir -p $FOLDER_NAME
-        GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc go build -ldflags="-H windowsgui -s -w" -o $FOLDER_NAME/flow-driver-gui.exe
-        cp -r ./dist/client $FOLDER_NAME/
-        zip -r ${FOLDER_NAME}.zip $FOLDER_NAME
-
-    - name: Build macOS
-      run: |
-        VERSION="${{ github.ref_name }}"
-        FOLDER_NAME="flow-driver-${VERSION}-macos"
-        mkdir -p $FOLDER_NAME
-        GOOS=darwin GOARCH=amd64 CGO_ENABLED=1 go build -ldflags="-s -w" -o $FOLDER_NAME/flow-driver-gui
-        cp -r ./dist/client $FOLDER_NAME/
-        zip -r ${FOLDER_NAME}.zip $FOLDER_NAME
-    
-    - name: Release
-      uses: softprops/action-gh-release@v1
-      with:
-        files: |
-          flow-driver-*.zip
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  release:
+    needs: [build-windows, build-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: artifacts/**/*.zip
