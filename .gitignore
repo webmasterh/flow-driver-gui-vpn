@@ -28,7 +28,7 @@ desktop.ini
 
 # Go specific
 go.sum
-go.mod
+!go.mod
 
 # Cache and temporary files
 .cache/
