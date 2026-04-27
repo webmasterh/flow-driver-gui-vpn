@@ -30,7 +30,7 @@ jobs:
 
     - name: Build Windows GUI executable
       run: |
-        VERSION=${GITHUB_REF_NAME}
+        VERSION=${github.ref_name}
         FILE_NAME="flow-driver-${VERSION}-windows.exe"
         go build -ldflags="-H windowsgui -s -w" -o $FILE_NAME
 
