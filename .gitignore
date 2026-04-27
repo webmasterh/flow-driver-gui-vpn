@@ -1,0 +1,81 @@
+# Go generated files
+*.exe
+*.dll
+*.so
+*.dylib
+*.out
+*.test
+
+# Build artifacts
+bin/
+dist/
+release/
+
+# IDE specific files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Environment files
+.env
+.local
+
+# Go specific
+go.sum
+go.mod
+
+# Cache and temporary files
+.cache/
+tmp/
+temp/
+
+# Visual Studio Code
+.vscode/settings.json
+.vscode/launch.json
+.vscode/tasks.json
+
+# macOS
+*.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Desktop.ini
+ehthumbs.db
+IconCache.db
+
+# Linux
+*~
+
+# Logs
+*.log
+
+# Test coverage
+coverage.out
+cover.out
+
+# Profiling data
+*.pprof
+
+# Editor backup files
+*~ 
+.*~
+*.bak
+*.old
+*.new
+*.rej
+*.orig
+
+# Local development files
+.local
+.dev
+.debug
+
+# Generated code documentation
+docs/
