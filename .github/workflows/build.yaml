@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     
     steps:
     - name: Checkout code
@@ -33,9 +33,10 @@ jobs:
 
     - name: Build Windows GUI executable
       run: |
-        $VERSION = "${{ github.ref_name }}"
-        $FILE_NAME = "flow-driver-gui-${VERSION}-windows.exe"
+        VERSION = "${{ github.ref_name }}"
+        FILE_NAME = "dist\flow-driver-gui-${VERSION}-windows.exe"
         go build -ldflags="-H windowsgui -s -w" -o $FILE_NAME
+
 
     - name: Release
       uses: softprops/action-gh-release@v1

@@ -8,7 +8,7 @@
 
 # Build artifacts
 bin/
-dist/
+!dist/client/
 release/
 
 # IDE specific files
