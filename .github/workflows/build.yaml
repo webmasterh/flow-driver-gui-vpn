@@ -5,79 +5,50 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
 jobs:
-  build-windows:
+  build:
     runs-on: windows-latest
+    
     steps:
-      - uses: actions/checkout@v4
-      
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.23'
-      
-      - name: Install dependencies
-        run: |
-          go mod tidy
-          go mod download
-      
-      - name: Build Windows
-        run: |
-          $VERSION = "${{ github.ref_name }}"
-          $FOLDER_NAME = "flow-driver-$VERSION-windows"
-          New-Item -ItemType Directory -Path $FOLDER_NAME
-          go build -ldflags="-H windowsgui -s -w" -o $FOLDER_NAME/flow-driver-gui.exe
-          Copy-Item -Recurse ./dist/client $FOLDER_NAME/
-          Compress-Archive -Path $FOLDER_NAME/* -DestinationPath "$FOLDER_NAME.zip"
-      
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-build
-          path: flow-driver-*.zip
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-  # build-macos:
-  #   runs-on: macos-latest
-  #   steps:
-  #     - uses: actions/checkout@v4
-      
-  #     - name: Setup Go
-  #       uses: actions/setup-go@v5
-  #       with:
-  #         go-version: '1.23'
-      
-  #     - name: Install dependencies
-  #       run: |
-  #         go mod tidy
-  #         go mod download
-      
-  #     - name: Build macOS
-  #       run: |
-  #         VERSION="${{ github.ref_name }}"
-  #         FOLDER_NAME="flow-driver-${VERSION}-macos"
-  #         mkdir -p $FOLDER_NAME
-  #         go build -o $FOLDER_NAME/flow-driver-gui
-  #         cp -r ./dist/client $FOLDER_NAME/
-  #         zip -r ${FOLDER_NAME}.zip $FOLDER_NAME
-      
-  #     - name: Upload artifact
-  #       uses: actions/upload-artifact@v4
-  #       with:
-  #         name: macos-build
-  #         path: flow-driver-*.zip
+    - name: Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.26'
 
-  release:
-    needs: [build-windows]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-      
-      - name: Release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: artifacts/**/*.zip
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Install dependencies
+      run: |
+        # Ensure we have the latest Go modules
+        go mod tidy
+        go mod download
+        
+        # If you need specific Windows dependencies, add them here
+        # Example for common packages:
+        # go get github.com/your/package
+
+    - name: Build Windows GUI executable
+      run: |
+        $VERSION = "${{ github.ref_name }}"
+        $FOLDER_NAME = "flow-driver-$VERSION-windows"
+        New-Item -ItemType Directory -Path $FOLDER_NAME
+        go build -ldflags="-H windowsgui -s -w" -o $FOLDER_NAME/flow-driver-gui.exe
+        Copy-Item -Recurse ./dist/client $FOLDER_NAME/
+        Compress-Archive -Path $FOLDER_NAME/* -DestinationPath "$FOLDER_NAME.zip"
+
+    - name: Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: flow-driver-*
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Verify build
+      if: startsWith(github.ref, 'refs/tags/')
+      run: |
+        # Show file information to verify successful build
+        Get-ChildItem -Path .\flow-driver-*.exe -Force
