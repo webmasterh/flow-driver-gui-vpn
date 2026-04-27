@@ -33,14 +33,15 @@ jobs:
 
     - name: Build Windows GUI executable
       run: |
-        VERSION = "${{ github.ref_name }}"
-        FILE_NAME = "dist/flow-driver-gui-${VERSION}-windows.exe"
-        go build -ldflags="-H windowsgui -s -w" -o $FILE_NAME
+        VERSION=${GITHUB_REF_NAME}
+        FOLDER_NAME="flow-driver-gui-${VERSION}"
+        mkdir -p $FOLDER_NAME
+        go build -ldflags="-H windowsgui -s -w" -o $FOLDER_NAME/flow-driver-gui.exe
 
-
+        zip -r "${FOLDER_NAME}.zip" $FOLDER_NAME
     - name: Release
       uses: softprops/action-gh-release@v1
       with:
-        files: flow-driver-*
+        files: flow-driver-*.zip
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
