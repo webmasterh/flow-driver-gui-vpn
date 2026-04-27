@@ -34,7 +34,7 @@ jobs:
     - name: Build Windows GUI executable
       run: |
         $VERSION = "${{ github.ref_name }}"
-        $FOLDER_NAME = "flow-driver-$VERSION-windows"
+        $FOLDER_NAME = "flow-driver-gui-$VERSION-windows"
         New-Item -ItemType Directory -Path $FOLDER_NAME
         go build -ldflags="-H windowsgui -s -w" -o $FOLDER_NAME/flow-driver-gui.exe
         Copy-Item -Recurse ./dist/client $FOLDER_NAME/
