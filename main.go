@@ -37,6 +37,11 @@ type VPNManager struct {
 	saveConfigBtn *widget.Button
 }
 
+type ClientConfig struct {
+    ListenAddr string `json:"listen_addr"`
+}
+
+
 func NewVPNManager(window fyne.Window) *VPNManager {
 	// exePath, _ := os.Executable()
 	// defaultDir := filepath.Dir(exePath)
@@ -244,6 +249,27 @@ func (vm *VPNManager) saveConfig(content string) error {
 	return nil
 }
 
+func (vm *VPNManager) getProxyAddr() (string, error) {
+    configPath := filepath.Join(vm.clientDir, "client_config.json")
+    
+    data, err := os.ReadFile(configPath)
+    if err != nil {
+        return "", fmt.Errorf("failed to read config: %v", err)
+    }
+    
+    var config ClientConfig
+    if err := json.Unmarshal(data, &config); err != nil {
+        return "", fmt.Errorf("failed to parse config: %v", err)
+    }
+    
+    if config.ListenAddr == "" {
+        return "", fmt.Errorf("listen_addr not found in config")
+    }
+    
+    return config.ListenAddr, nil
+}
+
+
 func main() {
 	myApp := app.New()
 	myWindow := myApp.NewWindow("Flow Driver GUI")
@@ -271,11 +297,18 @@ func main() {
 	})
 
 	vm.setProxyBtn = widget.NewButton("Set Proxy", func() {
-		if err := setSystemProxy("127.0.0.1:1080"); err != nil {
+		proxyAddr, err := vm.getProxyAddr()
+		if err != nil {
+			vm.appendLog(fmt.Sprintf("Error reading proxy address: %v", err))
+			dialog.ShowError(err, myWindow)
+			return
+		}
+		
+		if err := setSystemProxy(proxyAddr); err != nil {
 			vm.appendLog(fmt.Sprintf("Error setting proxy: %v", err))
 			dialog.ShowError(err, myWindow)
 		} else {
-			vm.appendLog("Proxy set successfully")
+			vm.appendLog(fmt.Sprintf("Proxy set successfully: %s", proxyAddr))
 		}
 	})
 
