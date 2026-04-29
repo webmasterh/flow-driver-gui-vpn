@@ -8,10 +8,15 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 	"runtime"
+
+	"net"
+    "net/http"
+    "golang.org/x/net/proxy"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
@@ -35,6 +40,7 @@ type VPNManager struct {
 	window        fyne.Window
 	configEditor  *widget.RichText
 	saveConfigBtn *widget.Button
+	httpProxyServer *http.Server
 }
 
 type ClientConfig struct {
@@ -94,6 +100,7 @@ func (vm *VPNManager) startVPN() error {
 	vm.appendLog("Starting VPN client...")
 	vm.appendLog(fmt.Sprintf("Command: %s -c %s -gc %s", clientPath, configPath, credPath))
 
+	vm.connectBtn.Disable()
 	cmd := exec.Command(clientPath, "-c", configPath, "-gc", credPath)
 	
 	stdout, err := cmd.StdoutPipe()
@@ -249,25 +256,36 @@ func (vm *VPNManager) saveConfig(content string) error {
 	return nil
 }
 
-func (vm *VPNManager) getProxyAddr() (string, error) {
+func (vm *VPNManager) getProxyAddr() (socksAddr string, httpAddr string, err error) {
     configPath := filepath.Join(vm.clientDir, "client_config.json")
     
     data, err := os.ReadFile(configPath)
     if err != nil {
-        return "", fmt.Errorf("failed to read config: %v", err)
+        return "", "", fmt.Errorf("failed to read config: %v", err)
     }
     
     var config ClientConfig
     if err := json.Unmarshal(data, &config); err != nil {
-        return "", fmt.Errorf("failed to parse config: %v", err)
+        return "", "", fmt.Errorf("failed to parse config: %v", err)
     }
     
     if config.ListenAddr == "" {
-        return "", fmt.Errorf("listen_addr not found in config")
+        return "", "", fmt.Errorf("listen_addr not found in config")
     }
     
-    return config.ListenAddr, nil
+    // SOCKS address from config
+    socksAddr = config.ListenAddr
+    
+    // HTTP proxy =
+    host, port, _ := net.SplitHostPort(socksAddr)
+    portNum, _ := strconv.Atoi(port)
+
+	// We can Modify http proxy port here
+    httpAddr = fmt.Sprintf("%s:%d", host, portNum+1)
+    
+    return socksAddr, httpAddr, nil
 }
+
 
 
 func main() {
@@ -281,14 +299,32 @@ func main() {
 
 	// Connect button
 	vm.connectBtn = widget.NewButton("Start VPN", func() {
-		if err := vm.startVPN(); err != nil {
-			vm.appendLog(fmt.Sprintf("Error: %v", err))
-			dialog.ShowError(err, myWindow)
-		}
-	})
+    if vm.cmd != nil {
+        vm.appendLog("VPN is already running")
+        return
+    }
+
+    if err := vm.startVPN(); err != nil {
+        dialog.ShowError(err, myWindow)
+        return
+    }
+
+    // Start HTTP proxy converter
+    socksAddr, httpAddr, err := vm.getProxyAddr()
+    if err != nil {
+        vm.appendLog(fmt.Sprintf("Warning: Could not start HTTP proxy: %v", err))
+    } else {
+        time.Sleep(500 * time.Millisecond) // Wait for SOCKS to be ready
+        if err := vm.startHTTPProxy(socksAddr, strings.Split(httpAddr, ":")[1]); err != nil {
+            vm.appendLog(fmt.Sprintf("Warning: HTTP proxy failed: %v", err))
+        }
+    }
+})
 
 	// Disconnect button
 	vm.disconnectBtn = widget.NewButton("Stop VPN", func() {
+		    vm.stopHTTPProxy()
+
 		if err := vm.stopVPN(); err != nil {
 			vm.appendLog(fmt.Sprintf("Error: %v", err))
 		} else {
@@ -297,18 +333,19 @@ func main() {
 	})
 
 	vm.setProxyBtn = widget.NewButton("Set Proxy", func() {
-		proxyAddr, err := vm.getProxyAddr()
+		socksAddr, httpAddr, err := vm.getProxyAddr()
 		if err != nil {
 			vm.appendLog(fmt.Sprintf("Error reading proxy address: %v", err))
 			dialog.ShowError(err, myWindow)
 			return
 		}
 		
-		if err := setSystemProxy(proxyAddr); err != nil {
+		if err := setSystemProxy(httpAddr); err != nil {
 			vm.appendLog(fmt.Sprintf("Error setting proxy: %v", err))
 			dialog.ShowError(err, myWindow)
 		} else {
-			vm.appendLog(fmt.Sprintf("Proxy set successfully: %s", proxyAddr))
+			vm.appendLog(fmt.Sprintf("HTTP proxy set successfully: %s", httpAddr))
+			vm.appendLog(fmt.Sprintf("Socks5: %s", socksAddr))
 		}
 	})
 
@@ -734,4 +771,85 @@ func clearLinuxProxy() error {
 	}
 	
 	return nil
+}
+
+func (vm *VPNManager) startHTTPProxy(socksAddr string, httpPort string) error {
+    dialer, err := proxy.SOCKS5("tcp", socksAddr, nil, proxy.Direct)
+    if err != nil {
+        return fmt.Errorf("failed to create SOCKS dialer: %v", err)
+    }
+
+    transport := &http.Transport{
+        Dial: dialer.Dial,
+    }
+
+    handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        if r.Method == http.MethodConnect {
+            // Handle HTTPS CONNECT
+            vm.handleHTTPSConnect(w, r, dialer)
+        } else {
+            // Handle HTTP
+            r.RequestURI = ""
+            resp, err := transport.RoundTrip(r)
+            if err != nil {
+                http.Error(w, err.Error(), http.StatusServiceUnavailable)
+                return
+            }
+            defer resp.Body.Close()
+
+            for k, v := range resp.Header {
+                w.Header()[k] = v
+            }
+            w.WriteHeader(resp.StatusCode)
+            io.Copy(w, resp.Body)
+        }
+    })
+
+    vm.httpProxyServer = &http.Server{
+        Addr:    "127.0.0.1:" + httpPort,
+        Handler: handler,
+    }
+
+    go func() {
+        if err := vm.httpProxyServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+            vm.appendLog(fmt.Sprintf("HTTP proxy error: %v", err))
+        }
+    }()
+
+    vm.appendLog(fmt.Sprintf("HTTP proxy started on 127.0.0.1:%s", httpPort))
+    return nil
+}
+
+func (vm *VPNManager) handleHTTPSConnect(w http.ResponseWriter, r *http.Request, dialer proxy.Dialer) {
+    destConn, err := dialer.Dial("tcp", r.Host)
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusServiceUnavailable)
+        return
+    }
+    defer destConn.Close()
+
+    w.WriteHeader(http.StatusOK)
+
+    hijacker, ok := w.(http.Hijacker)
+    if !ok {
+        http.Error(w, "Hijacking not supported", http.StatusInternalServerError)
+        return
+    }
+
+    clientConn, _, err := hijacker.Hijack()
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusServiceUnavailable)
+        return
+    }
+    defer clientConn.Close()
+
+    go io.Copy(destConn, clientConn)
+    io.Copy(clientConn, destConn)
+}
+
+func (vm *VPNManager) stopHTTPProxy() {
+    if vm.httpProxyServer != nil {
+        vm.httpProxyServer.Close()
+        vm.appendLog("HTTP proxy stopped")
+    }
 }
